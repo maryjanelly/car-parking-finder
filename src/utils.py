@@ -29,7 +29,7 @@ class Park_classifier():
 
         return car_park_positions
 
-    def classify(self, image:np.ndarray, prosessed_image:np.ndarray,threshold:int=900)->np.ndarray:
+    def classify(self, image: np.ndarray, prosessed_image: np.ndarray, threshold: int = 900, return_status=False):
         """It crops the already processed image into car park regions and classifies the parking space as empty or not according to threshold.
 
         Parameters
@@ -46,33 +46,32 @@ class Park_classifier():
         """
         # Finding out the empty and occupied parking spaces and drawing them.
         empty_car_park = 0
-        for x, y in self.car_park_positions:
-            
-            # defining the starting and ending points of the rectangle as cross line
+        # Assuming `self.car_park_positions` is a 1D list of coordinates, convert to a 2D grid here
+        grid_size = (10, 10)  # Adjust according to your layout
+        park_status = np.ones(grid_size, dtype=int)  # 1 = occupied, 0 = empty
+        
+        for idx, (x, y) in enumerate(self.car_park_positions):
             col_start, col_stop = x, x + self.rect_width
             row_start, row_stop = y, y + self.rect_height
+            crop = prosessed_image[row_start:row_stop, col_start:col_stop]
+            count = cv2.countNonZero(crop)
+            
+            if count < threshold:
+                row, col = divmod(idx, grid_size[1])  # Convert linear index to 2D grid position
+                park_status[row, col] = 0  # Mark as empty
+                color, thick = (0, 255, 0), 5
+                empty_car_park += 1
+            else:
+                color, thick = (0, 0, 255), 2
 
-            # cropping the car park areas form image
-            crop=prosessed_image[row_start:row_stop, col_start:x+col_stop]
-            
-            # counting the number of pixel which below the threshold value reason of the expectation that previous image processing steps
-            count=cv2.countNonZero(crop)
-            
-            # classifying accprding to the threshold value to updating counts and setting drawing params
-            empty_car_park, color, thick = [empty_car_park + 1, (0,255,0), 5] if count<threshold else [empty_car_park, (0,0,255), 2]
-                
-            # drawing the rectangle on the image
-            start_point, stop_point = (x,y), (x+self.rect_width, y+self.rect_height)
+            start_point, stop_point = (x, y), (x + self.rect_width, y + self.rect_height)
             cv2.rectangle(image, start_point, stop_point, color, thick)
         
-        
-        # drawing the legend rectengle where on the tıo left side of the image
-        cv2.rectangle(image,(45,30),(250,75),(180,0,180),-1)
-
+        cv2.rectangle(image, (45, 30), (250, 75), (180, 0, 180), -1)
         ratio_text = f'Free: {empty_car_park}/{len(self.car_park_positions)}'
-        cv2.putText(image,ratio_text,(50,60),cv2.FONT_HERSHEY_SIMPLEX,0.9,(255,255,255),2)
+        cv2.putText(image, ratio_text, (50, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
         
-        return image
+        return (image, park_status) if return_status else image
         
 
     def implement_process(self, image:np.ndarray)->np.ndarray:
@@ -174,4 +173,3 @@ class Coordinate_denoter():
         # writing the label coordinates into the file
         with open(self.car_park_positions_path,'wb') as f:
             pickle.dump(self.car_park_positions,f)
-        
